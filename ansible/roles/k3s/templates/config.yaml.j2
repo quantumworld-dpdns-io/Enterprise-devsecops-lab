@@ -1,0 +1,39 @@
+# {{ ansible_managed }}
+token: "{{ k3s_token }}"
+node-name: "{{ ansible_hostname }}"
+{% if k3s_role == 'server' %}
+cluster-cidr: "{{ k3s_cluster_cidr }}"
+service-cidr: "{{ k3s_service_cidr }}"
+write-kubeconfig-mode: "0600"
+secrets-encryption: {{ k3s_secrets_encryption | lower }}
+tls-san:
+  - "{{ ansible_host }}"
+{% for san in k3s_tls_san %}
+  - "{{ san }}"
+{% endfor %}
+disable:
+{% for item in k3s_disable %}
+  - {{ item }}
+{% endfor %}
+kube-apiserver-arg:
+  - "audit-log-path=/var/lib/rancher/k3s/server/logs/audit.log"
+  - "audit-log-maxage=7"
+  - "audit-policy-file=/etc/rancher/k3s/audit-policy.yaml"
+{% else %}
+server: "{{ k3s_server_url }}"
+{% endif %}
+{% if k3s_node_labels %}
+node-label:
+{% for l in k3s_node_labels %}
+  - "{{ l }}"
+{% endfor %}
+{% endif %}
+{% if k3s_node_taints %}
+node-taint:
+{% for t in k3s_node_taints %}
+  - "{{ t }}"
+{% endfor %}
+{% endif %}
+{% for k, v in k3s_extra_args.items() %}
+{{ k }}: {{ v | to_json }}
+{% endfor %}

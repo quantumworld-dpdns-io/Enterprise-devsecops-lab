@@ -1,0 +1,37 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read effective sshd configuration
+      ansible.builtin.command: sshd -T
+      register: sshd_effective
+      changed_when: false
+
+    - name: Assert sshd hardening is effective
+      ansible.builtin.assert:
+        that:
+          - "'permitrootlogin no' in sshd_effective.stdout"
+          - "'passwordauthentication no' in sshd_effective.stdout"
+          - "'x11forwarding no' in sshd_effective.stdout"
+          - "'maxauthtries 3' in sshd_effective.stdout"
+          - "'allowgroups sshusers' in sshd_effective.stdout"
+        fail_msg: sshd hardening is not in effect
+
+    - name: Check legacy clients are absent
+      ansible.builtin.command: dpkg-query -W -f='${Status}' telnet
+      register: telnet_pkg
+      changed_when: false
+      failed_when: "'install ok installed' in telnet_pkg.stdout"
+
+    - name: Check audit rules file
+      ansible.builtin.stat:
+        path: /etc/audit/rules.d/50-lab.rules
+      register: audit_rules
+
+    - name: Assert audit rules exist with restricted mode
+      ansible.builtin.assert:
+        that:
+          - audit_rules.stat.exists
+          - audit_rules.stat.mode == '0640'

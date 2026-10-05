@@ -1,0 +1,61 @@
+# Argo CD for the lab. TLS terminates at Traefik with a lab-CA certificate.
+global:
+  domain: argocd.lab.example
+
+configs:
+  params:
+    # TLS ends at the ingress; the hop inside the cluster is pod-to-pod.
+    server.insecure: true
+  cm:
+    # Local admin only for the lab. Production: SSO via OIDC (dex.config / oidc.config).
+    admin.enabled: true
+    exec.enabled: false
+    statusbadge.enabled: false
+  rbac:
+    # Everyone authenticated is read-only unless granted more.
+    policy.default: role:readonly
+    policy.csv: |
+      g, lab-admins, role:admin
+
+dex:
+  enabled: false
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: lab-ca
+    tls: true
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+controller:
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 768Mi }
+
+repoServer:
+  # Rendering the observability umbrella chart (kube-prometheus-stack alone is ~100
+  # manifests) starved the repo server on a 50m CPU request: its liveness probe timed out
+  # and the kubelet restarted it mid-render. More CPU and a tolerant probe fixed it.
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { memory: 1Gi }
+  livenessProbe:
+    timeoutSeconds: 10
+    failureThreshold: 5
+
+redis:
+  resources:
+    requests: { cpu: 20m, memory: 32Mi }
+    limits: { memory: 128Mi }
+
+applicationSet:
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 128Mi }
+
+notifications:
+  enabled: false

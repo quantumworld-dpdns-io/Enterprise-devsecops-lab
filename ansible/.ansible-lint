@@ -1,0 +1,9 @@
+---
+# ansible-lint configuration
+profile: production
+exclude_paths:
+  - .collections/
+  - examples/
+  - roles/*/molecule/
+mock_roles: []
+skip_list: []

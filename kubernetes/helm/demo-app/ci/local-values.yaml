@@ -1,0 +1,5 @@
+# Values for the local k3s-in-Docker environment and CI e2e.
+image:
+  repository: demo-app
+  tag: dev
+  pullPolicy: Never

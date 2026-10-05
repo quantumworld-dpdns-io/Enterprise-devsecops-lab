@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespaces.yaml
+  - network-policies.yaml
+  - lab-ca.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: enterprise-devsecops-lab
+      app.kubernetes.io/managed-by: kustomize

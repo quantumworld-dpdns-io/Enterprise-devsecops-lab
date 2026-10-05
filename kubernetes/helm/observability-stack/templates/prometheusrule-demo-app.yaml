@@ -1,0 +1,42 @@
+{{- if .Values.demoApp.alerts }}
+# SLO-style alerts for the demo service, built on the app's own metrics.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: demo-app
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: demo-app.slo
+      rules:
+        - record: demo:http_requests:rate5m
+          expr: sum by (route, code) (rate(demo_http_requests_total[5m]))
+        - record: demo:http_latency_p95:5m
+          expr: histogram_quantile(0.95, sum by (le, route) (rate(demo_http_request_duration_seconds_bucket[5m])))
+        - alert: DemoAppHighErrorRate
+          expr: |
+            sum(rate(demo_http_requests_total{code=~"5.."}[5m]))
+              / clamp_min(sum(rate(demo_http_requests_total[5m])), 1e-9) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: demo-app 5xx ratio above 5% for 5 minutes
+            runbook: docs/troubleshooting.md#demo-app-errors
+        - alert: DemoAppSlow
+          expr: demo:http_latency_p95:5m{route="work"} > 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: demo-app p95 latency above 1s for 10 minutes
+            runbook: docs/troubleshooting.md#demo-app-latency
+        - alert: DemoAppDown
+          expr: absent(up{namespace="demo", service="demo-app"} == 1)
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: no healthy demo-app scrape target
+            runbook: docs/troubleshooting.md#demo-app-down
+{{- end }}

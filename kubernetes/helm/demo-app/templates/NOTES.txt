@@ -1,0 +1,1 @@
+demo-app {{ .Chart.AppVersion }} deployed as {{ include "demo-app.fullname" . }} in {{ .Release.Namespace }}.

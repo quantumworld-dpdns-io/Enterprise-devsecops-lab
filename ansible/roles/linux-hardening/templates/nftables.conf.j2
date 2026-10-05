@@ -1,0 +1,28 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+flush ruleset
+
+table inet filter {
+  chain input {
+    type filter hook input priority 0; policy drop;
+    ct state established,related accept
+    ct state invalid drop
+    iif "lo" accept
+    ip protocol icmp icmp type { echo-request, destination-unreachable, time-exceeded } limit rate 10/second accept
+    ip6 nexthdr icmpv6 accept
+{% for rule in hardening_firewall_allow %}
+    ip saddr {{ rule.src }} {{ rule.proto }} dport {{ rule.port }} accept comment "{{ rule.comment | default('') }}"
+{% endfor %}
+    limit rate 5/minute log prefix "nft-drop: " level info
+  }
+
+  # Hosts that forward traffic (k3s nodes) set their own forward policy via CNI.
+  chain forward {
+    type filter hook forward priority 0; policy {{ hardening_forward_policy | default('drop') }};
+    ct state established,related accept
+  }
+
+  chain output {
+    type filter hook output priority 0; policy accept;
+  }
+}

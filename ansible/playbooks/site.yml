@@ -1,0 +1,39 @@
+---
+# Full build of the VM-based lab:
+#   ansible-playbook -i inventory/proxmox.yml playbooks/site.yml --ask-vault-pass
+# Order matters: harden first, then the cluster, then the services that depend on it.
+
+- name: Baseline hardening on every host
+  hosts: all
+  become: true
+  roles:
+    - linux-hardening
+
+- name: Node metrics on every host
+  hosts: all
+  become: true
+  roles:
+    - node-exporter
+
+- name: K3s control plane
+  hosts: k3s_server
+  become: true
+  serial: 1
+  roles:
+    - k3s
+
+- name: K3s workers
+  hosts: k3s_agent
+  become: true
+  # Roll workers one at a time so a bad change never takes out all capacity.
+  serial: 1
+  vars:
+    k3s_role: agent
+  roles:
+    - k3s
+
+- name: CI runners
+  hosts: runners
+  become: true
+  roles:
+    - gitlab-runner

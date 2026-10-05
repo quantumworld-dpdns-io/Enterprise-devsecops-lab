@@ -1,0 +1,51 @@
+# App-of-apps: Argo CD watches kubernetes/argocd/apps and creates one Application per file.
+# The "lab" AppProject limits what workload Applications may deploy, and where; the
+# "platform" project (projects.yaml) covers cluster add-ons.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: lab
+  namespace: argocd
+spec:
+  description: Lab workloads. Only this repository, only the listed namespaces.
+  sourceRepos:
+    - https://github.com/dennislee928/enterprise-devsecops-lab.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: demo
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+    - server: https://kubernetes.default.svc
+      namespace: cert-manager   # lab root CA certificate only
+  # Cluster-scoped kinds this project may manage. Everything else is refused.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: cert-manager.io
+      kind: ClusterIssuer
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota
+  orphanedResources:
+    warn: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: lab
+  source:
+    repoURL: https://github.com/dennislee928/enterprise-devsecops-lab.git
+    targetRevision: main
+    path: kubernetes/argocd/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

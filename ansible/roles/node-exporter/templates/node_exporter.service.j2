@@ -1,0 +1,27 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Prometheus node exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=node_exporter
+Group=node_exporter
+ExecStart=/usr/local/bin/node_exporter \
+  --web.listen-address={{ node_exporter_listen }} \
+  --collector.textfile.directory={{ node_exporter_textfile_dir }}{% for c in node_exporter_collectors %} \
+  --collector.{{ c }}{% endfor %}
+
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+CapabilityBoundingSet=
+ReadOnlyPaths=/
+
+[Install]
+WantedBy=multi-user.target

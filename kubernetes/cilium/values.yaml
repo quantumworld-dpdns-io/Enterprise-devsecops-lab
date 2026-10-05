@@ -1,0 +1,38 @@
+# Cilium as the k3s CNI: eBPF dataplane, NetworkPolicy enforcement and Hubble flow visibility.
+# kube-proxy stays (k3s embedded); kubeProxyReplacement is the next step once the
+# eBPF service path is validated on the target kernel.
+ipam:
+  mode: kubernetes          # use the per-node podCIDR k3s allocates from 10.20.0.0/16
+kubeProxyReplacement: false
+routingMode: tunnel
+tunnelProtocol: vxlan
+operator:
+  replicas: 1
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 256Mi }
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { memory: 1Gi }
+# Nodes are containers: bpffs and the cgroup2 mount are prepared by scripts/cilium.sh.
+bpf:
+  autoMount:
+    enabled: false
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /run/cilium/cgroupv2
+policyEnforcementMode: default
+hubble:
+  enabled: true
+  metrics:
+    enabled: [dns, drop, tcp, flow, "httpV2:exemplars=true"]
+    serviceMonitor:
+      enabled: false        # set true when kube-prometheus-stack is installed
+  relay:
+    enabled: true
+    resources:
+      requests: { cpu: 20m, memory: 64Mi }
+      limits: { memory: 256Mi }
+  ui:
+    enabled: true

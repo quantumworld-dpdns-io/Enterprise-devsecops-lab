@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-app
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: lab
+  source:
+    repoURL: https://github.com/dennislee928/enterprise-devsecops-lab.git
+    targetRevision: main
+    path: kubernetes/helm/demo-app
+    helm:
+      releaseName: demo-app
+      valuesObject:
+        serviceMonitor:
+          enabled: true
+        tracing:
+          otlpEndpoint: http://otel-collector.monitoring:4317
+        # CI updates this digest after signing; Argo CD then rolls out exactly that image.
+        image:
+          digest: ""
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 2m

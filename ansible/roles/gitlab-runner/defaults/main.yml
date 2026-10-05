@@ -1,0 +1,19 @@
+---
+gitlab_runner_url: https://gitlab.lab.example
+# Runner authentication token (glrt-...) created in the GitLab UI or API.
+# Keep it in ansible-vault: group_vars/runners/vault.yml (vault_gitlab_runner_token).
+gitlab_runner_token: "{{ vault_gitlab_runner_token }}"
+gitlab_runner_name: "{{ ansible_hostname }}"
+gitlab_runner_concurrent: 2
+gitlab_runner_executor: docker
+gitlab_runner_default_image: alpine:3.20
+gitlab_runner_privileged: false
+# Bind /builds at the same path on the host so sibling containers started through the
+# Docker socket can mount $CI_PROJECT_DIR (see .gitlab-ci.yml header).
+gitlab_runner_volumes:
+  - /var/run/docker.sock:/var/run/docker.sock
+  - /builds:/builds
+  - /cache
+# Extra CA bundle for TLS-intercepting egress proxies (PEM path on the runner host).
+# Only set when the organisation has decided to trust that proxy.
+gitlab_runner_extra_ca_file: ""

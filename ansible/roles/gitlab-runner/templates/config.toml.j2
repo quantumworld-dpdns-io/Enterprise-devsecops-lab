@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+concurrent = {{ gitlab_runner_concurrent }}
+check_interval = 3
+shutdown_timeout = 30
+
+[[runners]]
+  name = "{{ gitlab_runner_name }}"
+  url = "{{ gitlab_runner_url }}"
+  token = "{{ gitlab_runner_token }}"
+  executor = "{{ gitlab_runner_executor }}"
+{% if gitlab_runner_extra_ca_file %}
+  tls-ca-file = "/etc/gitlab-runner/certs/egress-proxy-ca.crt"
+{% endif %}
+  [runners.docker]
+    image = "{{ gitlab_runner_default_image }}"
+    privileged = {{ gitlab_runner_privileged | lower }}
+    disable_cache = false
+    volumes = {{ gitlab_runner_volumes | to_json }}
+    pull_policy = ["if-not-present"]
+    allowed_pull_policies = ["if-not-present", "always"]
+    shm_size = 0

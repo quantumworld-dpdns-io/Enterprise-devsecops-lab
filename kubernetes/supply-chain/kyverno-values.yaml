@@ -1,0 +1,26 @@
+# Kyverno as the admission controller that enforces supply-chain policy.
+admissionController:
+  replicas: 1
+  container:
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { memory: 384Mi }
+backgroundController:
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 256Mi }
+cleanupController:
+  enabled: false
+reportsController:
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 256Mi }
+config:
+  # Never let a broken policy lock the platform namespaces out.
+  resourceFiltersExclude: []
+  webhooks:
+    - namespaceSelector:
+        matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: NotIn
+            values: [kube-system, kyverno, cert-manager]

@@ -1,0 +1,13 @@
+---
+# Management and monitoring both live on the node network in this lab.
+lab_mgmt_cidr: 10.10.10.0/24
+lab_security_cidr: 192.168.100.0/24
+
+hardening_firewall_allow:
+  - { port: 22, proto: tcp, src: "{{ lab_mgmt_cidr }}", comment: ssh from management }
+  - { port: 9100, proto: tcp, src: "{{ lab_mgmt_cidr }}", comment: node_exporter scrape }
+
+# Pin checksums alongside versions. Values below are placeholders: fill them from the
+# upstream release checksum files before the first run (the roles refuse to run without them).
+node_exporter_version: "1.8.2"
+node_exporter_sha256: "{{ vault_node_exporter_sha256 | default('') }}"

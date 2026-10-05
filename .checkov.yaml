@@ -1,0 +1,23 @@
+# Checkov runs against Terraform, Kubernetes manifests, Dockerfiles and GitHub workflows.
+# Every skip references a row in security/scanning/accepted-risks.md.
+compact: true
+quiet: true
+framework:
+  - terraform
+  - dockerfile
+  - github_actions
+  - kubernetes
+skip-path:
+  - .terraform
+  - .kube
+  - ansible/.collections
+  - gitlab/.secrets
+  - kubernetes/helm/observability-stack/charts
+  - kubernetes/supply-chain/tests   # deliberately non-compliant policy fixtures
+skip-check:
+  # AR-005: distroless has no shell for a Docker HEALTHCHECK; kubelet probes cover health.
+  - CKV_DOCKER_2
+  # AR-006: IfNotPresent with immutable tags/digests; Always adds a registry round-trip per restart.
+  - CKV_K8S_15
+  # AR-004: the chart default has no digest; CI sets image.digest from the signed push.
+  - CKV_K8S_43

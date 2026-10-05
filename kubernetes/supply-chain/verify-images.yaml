@@ -1,0 +1,89 @@
+# Admission-time supply-chain control: in the demo namespace, an image from the project
+# registry is admitted only if
+#   1. it is referenced by digest (the policy also mutates tag -> digest),
+#   2. it carries a keyless cosign signature made by THIS repository's GitHub workflow, and
+#   3. it carries a SLSA provenance attestation from the same workflow, built from main.
+# Anything else is rejected before a pod exists.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signature-and-provenance
+  annotations:
+    policies.kyverno.io/title: Verify signature and SLSA provenance
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Requires cosign keyless signatures and SLSA provenance issued by the
+      enterprise-devsecops-lab CI workflow for every image from ghcr.io/dennislee928.
+spec:
+  validationFailureAction: Enforce
+  webhookTimeoutSeconds: 15
+  background: false
+  rules:
+    - name: signed-by-ci-with-provenance
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [demo]
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/dennislee928/*"
+          mutateDigest: true
+          verifyDigest: true
+          required: true
+          attestors:
+            - entries:
+                - keyless:
+                    issuer: https://token.actions.githubusercontent.com
+                    subjectRegExp: "^https://github.com/dennislee928/enterprise-devsecops-lab/\\.github/workflows/ci\\.yml@refs/heads/main$"
+                    rekor:
+                      url: https://rekor.sigstore.dev
+          attestations:
+            - type: https://slsa.dev/provenance/v1
+              attestors:
+                - entries:
+                    - keyless:
+                        issuer: https://token.actions.githubusercontent.com
+                        # yamllint disable-line rule:line-length
+                        subjectRegExp: "^https://github.com/dennislee928/enterprise-devsecops-lab/\\.github/workflows/ci\\.yml@refs/heads/main$"
+                        rekor:
+                          url: https://rekor.sigstore.dev
+              conditions:
+                - all:
+                    - key: "{{ buildDefinition.externalParameters.workflow.repository }}"
+                      operator: Equals
+                      value: https://github.com/dennislee928/enterprise-devsecops-lab
+                    - key: "{{ buildDefinition.externalParameters.workflow.ref }}"
+                      operator: Equals
+                      value: refs/heads/main
+---
+# Only the project registry and pinned upstream registries may be used at all.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-image-registries
+  annotations:
+    policies.kyverno.io/title: Restrict image registries
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: medium
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: allowed-registries
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [demo]
+      validate:
+        message: "Images in namespace demo must come from ghcr.io/dennislee928/."
+        pattern:
+          # Kyverno match pattern, not a Pod spec, so Semgrep's run-as-non-root rule does not apply.
+          # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          spec:
+            =(initContainers):
+              - image: "ghcr.io/dennislee928/*"
+            containers:
+              - image: "ghcr.io/dennislee928/*"

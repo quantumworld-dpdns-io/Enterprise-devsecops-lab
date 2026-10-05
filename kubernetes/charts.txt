@@ -1,0 +1,11 @@
+# Third-party Helm charts, pinned. One line per chart: <name> <repo-url> <version>
+# Bump deliberately and record why in the commit message.
+cert-manager            https://charts.jetstack.io                                   v1.16.2
+kube-prometheus-stack   https://prometheus-community.github.io/helm-charts           91.9.0
+loki                    https://grafana.github.io/helm-charts                        7.3.0
+tempo                   https://grafana.github.io/helm-charts                        1.24.4
+alloy                   https://grafana.github.io/helm-charts                        1.13.0
+opentelemetry-collector https://open-telemetry.github.io/opentelemetry-helm-charts   0.175.0
+argo-cd                 https://argoproj.github.io/argo-helm                         10.9.6
+cilium                  https://helm.cilium.io                                       1.20.2
+kyverno                 https://kyverno.github.io/kyverno                            3.9.1

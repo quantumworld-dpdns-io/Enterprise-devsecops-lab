@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+# Local overlay: Traefik is published on host loopback 8080/8443 by Terraform,
+# so nothing else changes. A production overlay would swap the CA issuer for
+# the organisation's PKI or ACME and pin node pools via patches here.

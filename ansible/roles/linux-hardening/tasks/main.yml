@@ -1,0 +1,107 @@
+---
+- name: Install baseline security packages
+  ansible.builtin.apt:
+    name: "{{ ['openssh-server', 'nftables']
+              + (['auditd'] if hardening_auditd else [])
+              + (['unattended-upgrades'] if hardening_unattended_upgrades else []) }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Remove legacy cleartext clients
+  ansible.builtin.apt:
+    name: "{{ hardening_remove_packages }}"
+    state: absent
+
+- name: Ensure SSH allow-group exists
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ hardening_ssh_allow_groups }}"
+
+# sshd -t (template validation below) refuses to run without its privilege separation
+# directory, which only exists after sshd has started once. Fresh images hit this.
+- name: Ensure sshd privilege separation directory exists
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Harden sshd
+  ansible.builtin.template:
+    src: sshd-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-hardening.conf
+    owner: root
+    group: root
+    mode: "0600"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Restart sshd
+
+- name: Apply kernel parameters
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/60-hardening.conf
+    reload: true
+  loop: "{{ hardening_sysctl | dict2items }}"
+  when: not hardening_in_container
+
+- name: Write nftables ruleset (default deny inbound)
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    owner: root
+    group: root
+    mode: "0600"
+    validate: nft -c -f %s
+  when: hardening_firewall_enabled and not hardening_in_container
+  notify: Reload nftables
+
+- name: Enable nftables
+  ansible.builtin.service:
+    name: nftables
+    enabled: true
+    state: started
+  when: hardening_firewall_enabled and not hardening_in_container
+
+- name: Enable automatic security updates
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    owner: root
+    group: root
+    mode: "0644"
+  when: hardening_unattended_upgrades
+
+- name: Audit rules for identity, privilege and SSH config changes
+  ansible.builtin.copy:
+    dest: /etc/audit/rules.d/50-lab.rules
+    content: |
+      -w /etc/passwd -p wa -k identity
+      -w /etc/shadow -p wa -k identity
+      -w /etc/group -p wa -k identity
+      -w /etc/sudoers -p wa -k privilege
+      -w /etc/sudoers.d/ -p wa -k privilege
+      -w /etc/ssh/sshd_config -p wa -k sshd
+      -w /etc/ssh/sshd_config.d/ -p wa -k sshd
+      -a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=unset -k root-exec
+    owner: root
+    group: root
+    mode: "0640"
+  when: hardening_auditd
+  notify: Load audit rules
+
+- name: Restrict cron and at to root
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0600"
+    modification_time: preserve
+    access_time: preserve
+  loop: [/etc/cron.allow, /etc/at.allow]

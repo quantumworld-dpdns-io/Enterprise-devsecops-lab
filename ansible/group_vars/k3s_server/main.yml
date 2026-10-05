@@ -1,0 +1,5 @@
+---
+k3s_role: server
+k3s_tls_san: [k3s.lab.example]
+k3s_node_taints: ["node-role.kubernetes.io/control-plane=true:NoSchedule"]
+k3s_node_labels: ["lab.example/role=control-plane"]

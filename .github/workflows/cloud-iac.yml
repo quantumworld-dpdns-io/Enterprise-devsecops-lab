@@ -1,0 +1,122 @@
+name: cloud-iac
+
+# AWS (EKS) and Azure (AKS) Terraform. Static checks run on every change.
+# `plan` runs only when the repository has OIDC configured, so no cloud keys are ever stored:
+#   AWS:   vars.AWS_PLAN_ROLE_ARN, vars.AWS_REGION, vars.TF_STATE_BUCKET
+#   Azure: vars.AZURE_PLAN_CLIENT_ID, vars.AZURE_TENANT_ID, vars.AZURE_SUBSCRIPTION_ID,
+#          vars.TF_STATE_RG, vars.TF_STATE_SA
+# Nothing here applies; apply would be a separate job bound to a protected environment.
+
+on:
+  pull_request:
+    paths: ["terraform/**", ".github/workflows/cloud-iac.yml"]
+  push:
+    branches: [main]
+    paths: ["terraform/**", ".github/workflows/cloud-iac.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - terraform/environments/aws-dev
+          - terraform/environments/azure-dev
+          - terraform/modules/github-oidc-aws
+          - terraform/modules/github-oidc-azure
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: fmt
+        run: terraform fmt -check -recursive "${{ matrix.dir }}"
+      - name: validate
+        run: |
+          terraform -chdir="${{ matrix.dir }}" init -backend=false -input=false
+          terraform -chdir="${{ matrix.dir }}" validate
+      - name: tflint
+        run: |
+          docker run --rm -v "$PWD:/src" -w "/src/${{ matrix.dir }}" --entrypoint sh \
+            ghcr.io/terraform-linters/tflint:v0.54.0 -c 'tflint --init >/dev/null && tflint --format compact'
+      - name: checkov
+        run: |
+          docker run --rm -v "$PWD:/src" bridgecrew/checkov:3.2.344 \
+            --config-file /src/.checkov.yaml -d "/src/${{ matrix.dir }}" --framework terraform \
+            --download-external-modules false --compact --quiet
+      - name: trivy config
+        run: |
+          docker run --rm -v "$PWD:/src" aquasec/trivy:0.58.1 config --severity HIGH,CRITICAL \
+            --exit-code 1 "/src/${{ matrix.dir }}"
+
+  plan-aws:
+    needs: static
+    if: vars.AWS_PLAN_ROLE_ARN != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gh-plan-${{ github.run_id }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: plan
+        working-directory: terraform/environments/aws-dev
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION }}"
+          terraform plan -input=false -lock-timeout=5m -out=tfplan
+          terraform show -no-color tfplan > plan.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aws-dev-plan
+          path: terraform/environments/aws-dev/plan.txt
+
+  plan-azure:
+    needs: static
+    if: vars.AZURE_PLAN_CLIENT_ID != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_PLAN_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: plan
+        working-directory: terraform/environments/azure-dev
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RG }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_SA }}" \
+            -backend-config="container_name=tfstate"
+          terraform plan -input=false -lock-timeout=5m -out=tfplan
+          terraform show -no-color tfplan > plan.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: azure-dev-plan
+          path: terraform/environments/azure-dev/plan.txt

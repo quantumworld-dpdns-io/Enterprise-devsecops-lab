@@ -1,0 +1,30 @@
+# Cilium is the CNI, so it cannot depend on Argo CD (which needs pod networking) to exist.
+# Bootstrap installs it once (scripts/cilium.sh); afterwards Argo CD adopts the same release
+# and owns upgrades. selfHeal is on, prune is off: Argo CD must never delete the CNI.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://helm.cilium.io
+      chart: cilium
+      targetRevision: 1.20.2
+      helm:
+        releaseName: cilium
+        valueFiles:
+          - $values/kubernetes/cilium/values.yaml
+    - repoURL: https://github.com/dennislee928/enterprise-devsecops-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true

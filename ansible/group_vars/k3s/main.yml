@@ -1,0 +1,17 @@
+---
+k3s_version: v1.31.4+k3s1
+k3s_sha256: "{{ vault_k3s_sha256 | default('') }}"
+
+# k3s nodes route pod traffic, so forwarding is allowed and the CNI owns the forward chain.
+hardening_forward_policy: accept
+
+hardening_firewall_allow:
+  - { port: 22, proto: tcp, src: "{{ lab_mgmt_cidr }}", comment: ssh from management }
+  - { port: 6443, proto: tcp, src: "{{ lab_mgmt_cidr }}", comment: kubernetes api }
+  - { port: 10250, proto: tcp, src: "{{ lab_mgmt_cidr }}", comment: kubelet }
+  # Pods (metrics-server, operators) reach the API server and kubelets on the node itself.
+  - { port: "{ 6443, 10250 }", proto: tcp, src: "{{ k3s_cluster_cidr }}", comment: pods to apiserver and kubelet }
+  - { port: 8472, proto: udp, src: "{{ lab_mgmt_cidr }}", comment: flannel vxlan }
+  - { port: 80, proto: tcp, src: "{{ lab_mgmt_cidr }}", comment: ingress http }
+  - { port: 443, proto: tcp, src: "{{ lab_mgmt_cidr }}", comment: ingress https }
+  - { port: 9100, proto: tcp, src: "{{ lab_mgmt_cidr }}", comment: node_exporter scrape }

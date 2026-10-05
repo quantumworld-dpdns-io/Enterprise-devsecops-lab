@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (git-ignored). API credentials go in environment variables:
+#   export PROXMOX_VE_ENDPOINT=https://pve-lab-1.lab.example:8006/
+#   export PROXMOX_VE_API_TOKEN='terraform@pve!lab=<secret>'
+proxmox_node    = "pve-lab-1"
+template_id     = 9000
+ssh_public_keys = ["ssh-ed25519 AAAA... you@workstation"]

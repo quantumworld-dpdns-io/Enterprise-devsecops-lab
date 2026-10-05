@@ -1,0 +1,18 @@
+# Docker-executor runner for this repository's .gitlab-ci.yml.
+# The Ansible role ansible/roles/gitlab-runner renders the same settings on a VM.
+concurrent = 2
+check_interval = 3
+
+[[runners]]
+  name = "lab-docker"
+  url = "http://gitlab.lab.example:8929"
+  token = "glrt-REPLACE_ME"           # from the runner registration (never commit a real one)
+  executor = "docker"
+  [runners.docker]
+    image = "alpine:3.20"
+    privileged = false
+    # Host Docker socket: jobs start pinned scanner containers as siblings.
+    # /builds at the same path on the host, so those siblings can mount the checkout.
+    volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/builds:/builds", "/cache"]
+    network_mode = "lab-gitlab_default"
+    pull_policy = ["if-not-present"]

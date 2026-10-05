@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  role_name: k3s
+  namespace: lab
+  author: Dennis Lee
+  description: Checksum-verified k3s server/agent install with audit logging, registry mirrors and air-gap support
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions: [jammy, noble]
+dependencies: []

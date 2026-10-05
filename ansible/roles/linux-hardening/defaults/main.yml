@@ -1,0 +1,39 @@
+---
+# Baseline hardening for lab hosts (Ubuntu 22.04/24.04, Debian 12).
+# Aligned with the intent of CIS Level 1, not a full benchmark implementation.
+
+hardening_ssh_port: 22
+hardening_ssh_allow_groups: [sshusers]
+hardening_ssh_password_auth: false
+hardening_ssh_root_login: "no"
+hardening_ssh_max_auth_tries: 3
+
+# Firewall: default deny inbound, allow these TCP ports from these sources.
+hardening_firewall_enabled: true
+hardening_firewall_allow:
+  - { port: 22, proto: tcp, src: 10.10.10.0/24, comment: ssh from management network }
+
+hardening_unattended_upgrades: true
+hardening_auditd: true
+
+# Kernel parameters. Hosts that route pod traffic (k3s nodes) override ip_forward.
+hardening_sysctl:
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.all.accept_source_route: 0
+  net.ipv4.conf.all.log_martians: 1
+  net.ipv4.icmp_echo_ignore_broadcasts: 1
+  net.ipv4.tcp_syncookies: 1
+  kernel.kptr_restrict: 2
+  kernel.dmesg_restrict: 1
+  kernel.unprivileged_bpf_disabled: 1
+  kernel.yama.ptrace_scope: 1
+  fs.protected_hardlinks: 1
+  fs.protected_symlinks: 1
+  fs.suid_dumpable: 0
+
+hardening_remove_packages: [telnet, rsh-client, talk]
+
+# Molecule and container runs cannot change kernel or firewall state.
+hardening_in_container: "{{ ansible_virtualization_type in ['docker', 'container', 'podman'] }}"

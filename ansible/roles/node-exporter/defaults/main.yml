@@ -1,0 +1,8 @@
+---
+node_exporter_version: "1.8.2"
+# sha256 of node_exporter-<version>.linux-amd64.tar.gz (from the release's sha256sums.txt).
+node_exporter_sha256: ""
+node_exporter_release_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}"
+node_exporter_listen: "0.0.0.0:9100"
+node_exporter_collectors: [systemd, processes]
+node_exporter_textfile_dir: /var/lib/node_exporter/textfile

@@ -1,0 +1,16 @@
+# Extends the default ruleset. Paths below are git-ignored local state that never
+# reaches a commit (see .gitignore); CI also runs `gitleaks git` over full history.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local, git-ignored state"
+paths = [
+  '''(^|/)\.terraform/''',
+  '''\.tfstate(\.backup)?$''',
+  '''(^|/)\.kube/''',
+  '''(^|/)reports/''',
+  '''(^|/)ansible/\.collections/''',
+  '''(^|/)gitlab/\.secrets/''',
+  '''(^|/)kubernetes/helm/[^/]+/charts/''',
+]

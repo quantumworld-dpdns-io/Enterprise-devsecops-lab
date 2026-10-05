@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/dennislee928/enterprise-devsecops-lab.git
+    targetRevision: main
+    path: kubernetes/helm/observability-stack   # umbrella chart; Argo CD builds its dependencies
+    helm:
+      releaseName: obs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true   # kube-prometheus-stack CRDs exceed the client-side annotation limit

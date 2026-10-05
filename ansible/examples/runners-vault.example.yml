@@ -1,0 +1,3 @@
+---
+# Copy to group_vars/runners/vault.yml, fill in, then encrypt with ansible-vault.
+vault_gitlab_runner_token: "glrt-... from GitLab > Admin > Runners > New instance runner"

@@ -1,0 +1,14 @@
+---
+galaxy_info:
+  role_name: linux_hardening
+  namespace: lab
+  author: Dennis Lee
+  description: Baseline SSH, kernel, firewall, audit and patching hardening
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions: [jammy, noble]
+    - name: Debian
+      versions: [bookworm]
+dependencies: []

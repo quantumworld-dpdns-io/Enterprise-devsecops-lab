@@ -1,0 +1,268 @@
+# Umbrella chart values. Each top-level key configures one pinned upstream dependency;
+# chart-owned resources (dashboard, alert rules) are toggled under "demoApp".
+
+demoApp:
+  dashboard: true
+  alerts: true
+
+kube-prometheus-stack:
+  # kube-prometheus-stack tuned for a small k3s cluster.
+  fullnameOverride: kps
+
+  # k3s embeds the controller-manager, scheduler, proxy and etcd in one binary and does not
+  # expose them as separate scrape targets; scraping them only produces false TargetDown alerts.
+  kubeControllerManager:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+
+  prometheus-node-exporter:
+    # k3s-in-Docker nodes do not mount / as shared, so the HostToContainer root mount
+    # fails with "path / is mounted on / but it is not a shared or slave mount".
+    # Real VM nodes (terraform/environments/proxmox) keep the default (true).
+    hostRootFsMount:
+      enabled: false
+
+  defaultRules:
+    rules:
+      etcd: false
+      kubeControllerManager: false
+      kubeSchedulerAlerting: false
+      kubeSchedulerRecording: false
+      kubeProxy: false
+
+  prometheus:
+    prometheusSpec:
+      retention: 2d
+      scrapeInterval: 30s
+      # Pick up every ServiceMonitor / PodMonitor / PrometheusRule, not only chart-labelled ones.
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
+      ruleSelectorNilUsesHelmValues: false
+      resources:
+        requests: { cpu: 100m, memory: 400Mi }
+        limits: { memory: 1Gi }
+
+  alertmanager:
+    alertmanagerSpec:
+      resources:
+        requests: { cpu: 10m, memory: 32Mi }
+        limits: { memory: 128Mi }
+
+  prometheusOperator:
+    resources:
+      requests: { cpu: 20m, memory: 64Mi }
+      limits: { memory: 256Mi }
+
+  grafana:
+    admin:
+      existingSecret: grafana-admin
+      userKey: admin-user
+      passwordKey: admin-password
+    ingress:
+      enabled: true
+      ingressClassName: traefik
+      annotations:
+        cert-manager.io/cluster-issuer: lab-ca
+      hosts: [grafana.lab.example]
+      tls:
+        - hosts: [grafana.lab.example]
+          secretName: grafana-tls
+    sidecar:
+      dashboards:
+        enabled: true
+        searchNamespace: ALL
+    additionalDataSources:
+      - name: Loki
+        type: loki
+        uid: loki
+        url: http://loki.monitoring:3100
+        access: proxy
+      - name: Tempo
+        type: tempo
+        uid: tempo
+        url: http://tempo.monitoring:3200
+        access: proxy
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            filterByTraceID: true
+          serviceMap:
+            datasourceUid: prometheus
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { memory: 384Mi }
+
+loki:
+  # Single-binary Loki on local disk. Fine for a lab; production would use object storage
+  # and the simple-scalable or distributed mode.
+  deploymentMode: SingleBinary
+  fullnameOverride: loki
+
+  loki:
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+    storage:
+      type: filesystem
+    schemaConfig:
+      configs:
+        - from: "2024-01-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+    limits_config:
+      retention_period: 48h
+    compactor:
+      retention_enabled: true
+      delete_request_store: filesystem
+
+  singleBinary:
+    replicas: 1
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests: { cpu: 50m, memory: 256Mi }
+      limits: { memory: 768Mi }
+
+  # Disable the components that only exist in scalable modes.
+  read: { replicas: 0 }
+  write: { replicas: 0 }
+  backend: { replicas: 0 }
+  gateway: { enabled: false }
+  chunksCache: { enabled: false }
+  resultsCache: { enabled: false }
+  lokiCanary: { enabled: false }
+  test: { enabled: false }
+
+tempo:
+  # Single-binary Tempo receiving OTLP from the collector.
+  fullnameOverride: tempo
+  tempo:
+    retention: 48h
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { memory: 512Mi }
+  persistence:
+    enabled: false
+
+alloy:
+  # Grafana Alloy ships pod logs to Loki. It tails logs through the Kubernetes API
+  # (loki.source.kubernetes), so it needs no hostPath mounts and runs as one Deployment.
+  fullnameOverride: alloy
+  controller:
+    type: deployment
+    replicas: 1
+  alloy:
+    resources:
+      requests: { cpu: 20m, memory: 64Mi }
+      limits: { memory: 256Mi }
+    configMap:
+      content: |
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        discovery.relabel "pods" {
+          targets = discovery.kubernetes.pods.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label  = "container"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            target_label  = "app"
+          }
+        }
+
+        loki.source.kubernetes "pods" {
+          targets    = discovery.relabel.pods.output
+          forward_to = [loki.process.json.receiver]
+        }
+
+        // The demo app logs JSON; lift the level into a label for fast filtering.
+        loki.process "json" {
+          stage.json {
+            expressions = { level = "level" }
+          }
+          stage.labels {
+            values = { level = "" }
+          }
+          forward_to = [loki.write.default.receiver]
+        }
+
+        loki.write "default" {
+          endpoint {
+            url = "http://loki.monitoring:3100/loki/api/v1/push"
+          }
+        }
+
+opentelemetry-collector:
+  # OpenTelemetry Collector: apps send OTLP here, never straight to a backend, so the
+  # tracing backend can change without touching application config.
+  fullnameOverride: otel-collector
+  mode: deployment
+  replicaCount: 1
+  image:
+    repository: otel/opentelemetry-collector-k8s
+  ports:
+    jaeger-compact: { enabled: false }
+    jaeger-thrift: { enabled: false }
+    jaeger-grpc: { enabled: false }
+    zipkin: { enabled: false }
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 256Mi }
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
+          http:
+            endpoint: ${env:MY_POD_IP}:4318
+    processors:
+      memory_limiter:
+        check_interval: 5s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      batch: {}
+    exporters:
+      # The chart's default metrics/logs pipelines stay (Helm cannot null a subchart table
+      # from an umbrella chart); keep their debug exporter quiet.
+      debug:
+        verbosity: basic
+      otlp/tempo:
+        endpoint: tempo.monitoring:4317
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/tempo]

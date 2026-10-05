@@ -1,0 +1,13 @@
+.kube/
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl.bak
+*.tmp.yaml
+reports/
+ansible/inventory/proxmox.yml
+ansible/group_vars/*/vault.yml
+ansible/.collections/
+terraform/environments/proxmox/terraform.tfvars
+kubernetes/helm/*/charts/
+gitlab/.secrets/

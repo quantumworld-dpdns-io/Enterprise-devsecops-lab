@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  role_name: gitlab_runner
+  namespace: lab
+  author: Dennis Lee
+  description: GitLab Runner with the Docker executor, signed apt repo, vaulted token and optional proxy CA
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions: [jammy, noble]
+dependencies: []

@@ -1,0 +1,19 @@
+# {{ ansible_managed }}
+mirrors:
+{% for registry, cfg in k3s_registry_mirrors.items() %}
+  "{{ registry }}":
+    endpoint:
+{% for ep in cfg.endpoint %}
+      - "{{ ep }}"
+{% endfor %}
+{% endfor %}
+{% if k3s_registry_ca_file %}
+configs:
+{% for registry, cfg in k3s_registry_mirrors.items() %}
+{% for ep in cfg.endpoint %}
+  "{{ ep | regex_replace('^https?://', '') }}":
+    tls:
+      ca_file: "{{ k3s_registry_ca_file }}"
+{% endfor %}
+{% endfor %}
+{% endif %}

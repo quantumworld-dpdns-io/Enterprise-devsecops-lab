@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Bootstrap: `kubectl apply -k kubernetes/argocd` after Argo CD is installed.
+resources:
+  - projects.yaml
+  - root-app.yaml

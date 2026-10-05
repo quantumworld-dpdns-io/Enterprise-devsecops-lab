@@ -1,0 +1,86 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/dennislee928/demo-app
+  # Pin by digest in real environments; the tag is a readable fallback.
+  tag: "0.1.0"
+  digest: ""
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  automountToken: false
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  privileged: false
+  capabilities:
+    drop: ["ALL"]
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+
+env:
+  APP_DRAIN_DELAY: "5s"
+
+tracing:
+  # OTLP gRPC endpoint of the in-cluster OpenTelemetry Collector. Empty disables export.
+  otlpEndpoint: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  adminPort: 9090
+
+ingress:
+  enabled: true
+  className: traefik
+  host: demo.lab.example
+  # Every path goes to the public listener, which serves only the API and answers anything
+  # else with a 404 that still carries the security headers. Probes and /metrics live on
+  # the separate admin port, which the ingress never routes.
+  paths: ["/"]
+  tls:
+    enabled: true
+    clusterIssuer: lab-ca
+  annotations: {}
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  # Namespaces allowed to reach the app over HTTP. kube-system hosts Traefik on k3s.
+  ingressFromNamespaces: ["kube-system"]
+  # Namespaces allowed to reach the admin port (probes, /metrics).
+  metricsFromNamespaces: ["monitoring"]
+  # Namespace running the OpenTelemetry Collector (egress on 4317).
+  otelNamespace: monitoring
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+
+topologySpread: true
+terminationGracePeriodSeconds: 30

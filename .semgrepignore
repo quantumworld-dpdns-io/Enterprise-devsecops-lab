@@ -1,0 +1,10 @@
+# Local-only, git-ignored state (caches, vendored charts, installed collections, secrets of
+# throwaway local services). Keep in sync with SKIP_DIRS in scripts/scan.sh and .gitleaks.toml.
+.kube/
+.terraform/
+reports/
+ansible/.collections/
+gitlab/.secrets/
+kubernetes/helm/*/charts/
+# Policy-test fixtures are deliberately non-compliant (they must fail the policies).
+kubernetes/supply-chain/tests/
