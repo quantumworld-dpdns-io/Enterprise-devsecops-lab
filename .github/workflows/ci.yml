@@ -157,14 +157,31 @@ jobs:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
-      - name: Verify provenance the way the admission policy will
+      - name: Verify SBOM attestation (cosign)
         if: steps.push.outputs.digest != ''
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
-          cosign verify-attestation "$IMAGE_NAME@$DIGEST" --type slsaprovenance1 \
+          # cosign verifies only attestations cosign itself attached (the
+          # CycloneDX SBOM above). It cannot enumerate the SLSA provenance
+          # stored by actions/attest-build-provenance as a GitHub attestation
+          # / Sigstore bundle, so do not ask cosign for slsaprovenance here.
+          cosign verify-attestation "$IMAGE_NAME@$DIGEST" --type cyclonedx \
             --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/ci.yml@refs/heads/main" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          echo "SBOM attestation verified for $IMAGE_NAME@$DIGEST"
+      - name: Verify provenance the way the admission policy will
+        if: steps.push.outputs.digest != ''
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # GitHub-native verification: reads the provenance created by
+          # actions/attest-build-provenance (predicate
+          # https://slsa.dev/provenance/v1) from GitHub attestations / the
+          # registry for this repository. Output is left visible so a failure
+          # shows the predicate type and signer identity.
+          gh attestation verify "oci://$IMAGE_NAME@$DIGEST" --repo "${{ github.repository }}"
           echo "provenance verified for $IMAGE_NAME@$DIGEST"
 
   e2e:
