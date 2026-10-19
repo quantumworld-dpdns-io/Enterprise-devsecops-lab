@@ -36,6 +36,7 @@ spec:
             - entries:
                 - keyless:
                     issuer: https://token.actions.githubusercontent.com
+                    # yamllint disable-line rule:line-length
                     subjectRegExp: "^https://github.com/quantumworld-dpdns-io/Enterprise-devsecops-lab/\\.github/workflows/ci\\.yml@refs/heads/main$"
                     rekor:
                       url: https://rekor.sigstore.dev
